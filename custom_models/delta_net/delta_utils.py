@@ -1,58 +1,61 @@
 import torch
 
-def chunk_delta_rule_forward(
-    Q: torch.Tensor,
-    K: torch.Tensor,
-    V: torch.Tensor,
-    beta: torch.Tensor,
-    C: int,
-    initial_state: torch.Tensor = None,
-    output_final_state: bool = True,
-):
+def chunk_delta_rule_forward(Q, K, V, beta, C, initial_state=None, output_final_state=True):
     """
-    Delta-rule forward pass with chunking.
-    Q, K, V: [B, H, N, D]; beta: [B, H, N]; returns O: [B, H, N, D], state: [B, H, D, D]
+    Delta rule forward pass with chunking, supporting batching and multi-head attention.
+
+    Args:
+        Q (torch.Tensor): Query tensor of shape [B, H, N, D]
+        K (torch.Tensor): Key tensor of shape [B, H, N, D]
+        V (torch.Tensor): Value tensor of shape [B, H, N, D]
+        beta (torch.Tensor): Beta tensor of shape [B, H, N]
+        C (int): Chunk size
+        initial_state (torch.Tensor or None): Optional initial state of shape [B, H, D, D]
+        output_final_state (bool): Whether to return the final state
+
+    Returns:
+        torch.Tensor: Output tensor of shape [B, H, N, D]
+        torch.Tensor or None: Final state tensor of shape [B, H, D, D] if output_final_state is True
     """
-    B, H, N, D = Q.shape
     orig_dtype = Q.dtype
+    B, H, N, D = Q.shape
     num_chunks = N // C
 
-    # reshape into chunks [B, H, num_chunks, C, D]
-    Qc = Q.view(B, H, num_chunks, C, D)
-    Kc = K.view(B, H, num_chunks, C, D)
-    Vc = V.view(B, H, num_chunks, C, D)
-    beta_c = beta.view(B, H, num_chunks, C)
+    Q_chunks = Q.view(B, H, num_chunks, C, D)
+    K_chunks = K.view(B, H, num_chunks, C, D)
+    V_chunks = V.view(B, H, num_chunks, C, D)
+    beta_chunks = beta.view(B, H, num_chunks, C)
 
-    # simple beta-weighted K, V (replace with learned rule)
-    Kb = Kc * beta_c.unsqueeze(-1)
-    Vb = Vc * beta_c.unsqueeze(-1)
+    K_beta = K_chunks * 0.01
+    V_beta = V_chunks * 0.01
 
-    # build T via lower-triangular operations (stub)
-    T = -(Kb @ Kc.transpose(-1, -2))
+    T = -(K_beta @ K_chunks.transpose(-1, -2)) 
     T = torch.tril(T, diagonal=-1)
+
     for i in range(1, C):
         T[:, :, :, i, :i] += (T[:, :, :, i, :, None] * T[:, :, :, :, :i]).sum(-2)
-    T = T + torch.eye(C, device=Q.device, dtype=Q.dtype).view(1, 1, 1, C, C)
 
-    # compute W and U
-    W = T @ Kb
-    U = T @ Vb
+    T += torch.eye(C, device=Q.device, dtype=Q.dtype).unsqueeze(0).unsqueeze(0).unsqueeze(0)
 
-    # initial state S and output O
+    W = T @ K_beta  
+    U = T @ V_beta 
+   
     S = initial_state if initial_state is not None else torch.zeros(B, H, D, D, device=Q.device, dtype=Q.dtype)
     O = torch.empty_like(V)
 
-    # chunk-wise accumulation
     for i in range(num_chunks):
-        q_i = Qc[:, :, i]        # [B,H,C,D]
-        k_i = Kc[:, :, i]
-        w_i = W[:, :, i]
-        u_i = U[:, :, i] - w_i @ S
-        o_inter = q_i @ S
-        A_i = torch.tril(q_i @ k_i.transpose(-1, -2))
-        o_intra = A_i @ u_i
-        S = S + k_i.transpose(-1, -2) @ u_i
-        O[:, :, i*C:(i+1)*C] = o_inter + o_intra
+        q_i = Q_chunks[:, :, i]       # [B, H, C, D]
+        k_i = K_chunks[:, :, i]       # [B, H, C, D]
+        w_i = W[:, :, i]              # [B, H, C, D]
+        u_i = U[:, :, i] - w_i @ S    # [B, H, C, D]
+   
+        o_inter = q_i @ S             # [B, H, C, D]
+        A_i = (q_i @ k_i.transpose(-1, -2))  # [B, H, C, C]
+        A_i = torch.tril(A_i)
+
+        o_intra = A_i @ u_i           # [B, H, C, D]
+        S = S + k_i.transpose(-1, -2) @ u_i  # [B, H, D, D]
+        O[:, :, i * C : (i + 1) * C] = o_intra + o_inter
 
     if not output_final_state:
         S = None

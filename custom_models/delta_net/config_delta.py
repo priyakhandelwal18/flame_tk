@@ -7,21 +7,35 @@ class DeltaNetConfig(PretrainedConfig):
     keys_to_ignore_at_inference = ["past_key_values"]
 
     def __init__(
+        # transformer
         self,
-        # —— align with 8 heads × 16 head-dim = 2048 state size
-        hidden_size:            int = 128,   # embedding dim = heads × head_dim
-        num_hidden_layers:      int = 24,
-        num_heads:              int = 8,     # so head_dim = 128 / 8 = 16
-        intermediate_size:      Optional[int] = None,
-        hidden_act:             str = "swish",
-        dropout:                float = 0.1,
-        chunk_size:             int = 16,    # size of each delta “chunk”
-        use_cache:              bool = True,
-        max_position_embeddings: int = 2048,
-        # you can add other delta-specific flags here if needed
+        hidden_size: int            = 128,       # 8 heads × 16 head-dim
+        num_hidden_layers: int      = 24,
+        num_heads: int              = 8,
+        intermediate_size: Optional[int] = None,
+        hidden_act: str             = "swish",
+        dropout: float              = 0.1,
+
+        # delta
+        chunk_size: int             = 16,
+        use_beta: bool              = True,
+        use_gate: bool              = False,
+        qk_activation: str          = "silu",
+        qk_norm: str                = "l2",
+        norm_eps: float             = 1e-6,
+
+        # encoding & embedding
+        max_position_embeddings: int= 2048,
+        use_cache: bool             = True,
+        pad_token_id: int           = 0,
+        bos_token_id: int           = 1,
+        eos_token_id: int           = 2,
+        tie_word_embeddings: bool   = False,
+        initializer_range: float    = 0.02,
+        vocab_size: int             = 32000,
         **kwargs,
     ):
-        # core Transformer settings
+        # transformer
         self.hidden_size            = hidden_size
         self.num_hidden_layers      = num_hidden_layers
         self.num_heads              = num_heads
@@ -29,11 +43,28 @@ class DeltaNetConfig(PretrainedConfig):
         self.hidden_act             = hidden_act
         self.dropout                = dropout
 
-        # delta-rule specific
+        # delta
         self.chunk_size             = chunk_size
+        self.use_beta               = use_beta
+        self.use_gate               = use_gate
+        self.qk_activation          = qk_activation
+        self.qk_norm                = qk_norm
+        self.norm_eps               = norm_eps
+
+        # encoding & embedding
+        self.max_position_embeddings= max_position_embeddings
         self.use_cache              = use_cache
+        self.pad_token_id           = pad_token_id
+        self.bos_token_id           = bos_token_id
+        self.eos_token_id           = eos_token_id
+        self.tie_word_embeddings    = tie_word_embeddings
+        self.initializer_range      = initializer_range
+        self.vocab_size             = vocab_size
 
-        # positional
-        self.max_position_embeddings = max_position_embeddings
-
-        super().__init__(**kwargs)
+        super().__init__(
+            pad_token_id=pad_token_id,
+            bos_token_id=bos_token_id,
+            eos_token_id=eos_token_id,
+            tie_word_embeddings=tie_word_embeddings,
+            **kwargs,
+        )

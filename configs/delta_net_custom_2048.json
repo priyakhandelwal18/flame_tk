@@ -1,23 +1,23 @@
 {
-    "model_type":               "delta_net",
-    "hidden_size":              128,      
-    "num_hidden_layers":        24,
-    "num_heads":                8,
-    "intermediate_size":        512,
-    "hidden_act":               "swish",
-    "dropout":                  0.1,
-  
-    "chunk_size":               16,      
-    "use_cache":                true,
-
-    "max_position_embeddings":  2048,
-  
-    "attention_bias":           false,
-    "initializer_range":        0.02,
-    "norm_eps":                 1e-6,
-    "bos_token_id":             1,
-    "eos_token_id":             2,
-    "tie_word_embeddings":      false,
-    "vocab_size":               32000
-  }
-  
+  "model_type":               "delta_net",
+  "hidden_size":              128,
+  "num_hidden_layers":        24,
+  "num_heads":                8,
+  "intermediate_size":        512,
+  "hidden_act":               "swish",
+  "dropout":                  0.1,
+  "chunk_size":               16,
+  "use_beta":                 true,
+  "use_gate":                 false,
+  "qk_activation":            "silu",
+  "qk_norm":                  "l2",
+  "norm_eps":                 1e-6,
+  "max_position_embeddings":  2048,
+  "use_cache":                true,
+  "pad_token_id":             0,
+  "bos_token_id":             1,
+  "eos_token_id":             2,
+  "tie_word_embeddings":      false,
+  "initializer_range":        0.02,
+  "vocab_size":               32000
+}
